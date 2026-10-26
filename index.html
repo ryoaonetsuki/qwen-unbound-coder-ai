@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Qwen Unbound Coder AI</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b0e14;color:#e6edf3;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{padding:14px 16px;border-bottom:1px solid #1f2937;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+h1{font-size:19px;margin:0}.sub{color:#9aa7b4;font-size:13px}
+#status{margin-left:auto;padding:6px 10px;border-radius:20px;font-size:13px;background:#374151}
+#status.on{background:#14532d}#status.off{background:#7f1d1d}
+main{max-width:900px;margin:0 auto;padding:12px}
+#chat{min-height:45vh;display:flex;flex-direction:column;gap:12px}
+.msg{background:#111827;border:1px solid #1f2937;border-radius:14px;padding:12px 14px;white-space:normal;overflow-wrap:anywhere}
+.msg.user{border-color:#2563eb}.msg pre{background:#0b0e14;padding:10px;border-radius:8px;overflow:auto;position:relative}
+.msg code{font-family:ui-monospace,Menlo,monospace;font-size:14px}
+.copy{position:absolute;right:8px;top:8px;background:#2563eb;color:#fff;border:0;border-radius:6px;padding:4px 8px}
+form{display:flex;gap:8px;margin-top:14px}textarea{flex:1;background:#111827;color:#e6edf3;border:1px solid #374151;border-radius:10px;padding:12px;min-height:56px}
+button{background:#2563eb;color:#fff;border:0;border-radius:10px;padding:12px 16px;font-weight:600}
+button.secondary{background:#374151}details,section{margin-top:14px;background:#111827;border:1px solid #1f2937;border-radius:12px;padding:12px}
+input,select{width:100%;background:#0b0e14;color:#e6edf3;border:1px solid #374151;border-radius:8px;padding:10px;margin:6px 0}
+label{font-size:13px;color:#9aa7b4}a{color:#60a5fa}footer{padding:16px;text-align:center;color:#9aa7b4;font-size:13px}
+#loading{display:none;color:#facc15}
+</style></head><body>
+<header><div><h1>Qwen Unbound Coder AI</h1><div class="sub">Open-weight coding assistant — real model only, no demo replies</div></div><span id="status">Checking…</span></header>
+<main>
+<div id="chat"><div class="msg">Ask a coding question. If the backend is offline, this page says so — it will not fake an answer. Start the notebook first (see Restart below), then press Reconnect.</div></div>
+<p id="loading">⏳ Generating…</p>
+<form id="form"><textarea id="input" placeholder="e.g. Write a Python function to merge two sorted lists, with tests"></textarea><button type="submit">Send</button></form>
+<div style="display:flex;gap:8px;margin-top:8px"><button class="secondary" id="reconnect" type="button">Reconnect / Health check</button><button class="secondary" id="clear" type="button">Clear chat</button></div>
+<details open><summary><b>Backend settings</b> — saved only in this browser (localStorage)</summary>
+<label>Gateway URL (from your notebook tunnel, e.g. https://…trycloudflare.com)</label><input id="base" placeholder="https://your-tunnel-url">
+<label>API key (only if you set QWEN_API_KEY in the notebook)</label><input id="key" type="password" placeholder="Optional">
+<label>Max tokens</label><input id="maxtok" type="number" value="1024">
+<p class="sub">Never paste a real password here. This key is only the gateway key you chose yourself.</p></details>
+<details><summary><b>Restart / reconnect (Android)</b></summary>
+<ol><li>Open the Colab/Kaggle notebook from this repo on your phone.</li><li>Runtime → Run all. Wait for the tunnel URL and for <code>/health</code> to say <b>online</b>.</li><li>Paste that tunnel URL above, press Reconnect, then chat.</li><li>If the session expired, the model file must be re-downloaded unless the provider kept it (Colab local files do not survive a new runtime; Kaggle datasets/outputs may persist — see docs).</li></ol></details>
+<section><b>About</b><p>Model: JonathanColetti/Qwen3.8-27B-Uncensored-GGUF, Q4_K_M (16.8 GB), base Qwen/Qwen3.8-27B, Apache 2.0. Reduced-refusal is a property of those published weights, not a promise that every request is answered — the publisher measured 12/100 refusals vs 98/100 for the base on one harmful-prompt set.</p></section>
+</main>
+<footer>Created by <b>Salman Biswas</b> (Ryo Aonetsuki) · <a href="https://github.com/ryoaonetsuki">GitHub</a> · <a href="https://t.me/ryoaonetsuki">Telegram</a> · <a href="https://t.me/aonetsukiarchive">Channel @aonetsukiarchive</a></footer>
+<script>
+const $=id=>document.getElementById(id);
+$('base').value=localStorage.getItem('qwen_base')||''; $('key').value=localStorage.getItem('qwen_key')||'';
+function save() { localStorage.setItem('qwen_base',$('base').value.trim()); localStorage.setItem('qwen_key',$('key').value.trim()); }
+async function health(){
+  const base=$('base').value.trim(); if(!base){ $('status').textContent='No backend URL set'; $('status').className=''; return false; }
+  save();
+  try{ const r=await fetch(base.replace(/\/$/,'')+'/health'); const j=await r.json();
+    const on=j.backend_reachable===true; $('status').textContent=on?'● Online — real model':'○ Gateway up, model offline'; $('status').className=on?'on':'off'; return on;
+  }catch(e){ $('status').textContent='○ Cannot reach gateway'; $('status').className='off'; return false; }
+}
+function addMsg(role,text){ const d=document.createElement('div'); d.className='msg '+(role==='user'?'user':''); d.innerHTML=role==='user'?text.replace(/</g,'&lt;'):marked.parse(text); d.querySelectorAll('pre').forEach(pre=>{ const b=document.createElement('button'); b.className='copy'; b.textContent='Copy'; b.onclick=()=>navigator.clipboard.writeText(pre.innerText.replace(/^Copy\n/,'')); pre.appendChild(b); pre.querySelectorAll('code').forEach(c=>hljs.highlightElement(c)); }); $('chat').appendChild(d); window.scrollTo(0,document.body.scrollHeight); return d; }
+$('reconnect').onclick=health; $('clear').onclick=()=>{ $('chat').innerHTML=''; };
+$('form').onsubmit=async e=>{ e.preventDefault(); const text=$('input').value.trim(); if(!text) return; $('input').value=''; addMsg('user',text);
+  if(!(await health())){ addMsg('assistant','**Backend offline.** Start the notebook, wait for health = online, then try again. No reply was generated.'); return; }
+  $('loading').style.display='block'; const box=addMsg('assistant',''); let out='';
+  try{ const headers={'Content-Type':'application/json'}; const k=$('key').value.trim(); if(k) headers.Authorization='Bearer '+k;
+    const r=await fetch($('base').value.trim().replace(/\/$/,'')+'/v1/chat/completions',{method:'POST',headers,body:JSON.stringify({messages:[{role:'system',content:'You are Qwen Unbound Coder AI, a coding assistant. Answer with code first when asked for code.'},{role:'user',content:text}],temperature:0.7,top_p:0.8,max_tokens:parseInt($('maxtok').value||1024),stream:true})});
+    if(!r.ok){ box.innerHTML=marked.parse('**Error '+r.status+':** '+(await r.text())); return; }
+    const reader=r.body.getReader(), dec=new TextDecoder(); let buf='';
+    while(true){ const {done,value}=await reader.read(); if(done) break; buf+=dec.decode(value,{stream:true}); const parts=buf.split('\n\n'); buf=parts.pop();
+      for(const p of parts){ const line=p.trim().split('\n').find(l=>l.startsWith('data:')); if(!line) continue; const data=line.slice(5).trim(); if(data==='[DONE]') continue; try{ const j=JSON.parse(data); const delta=j.choices?.[0]?.delta?.content||''; if(delta){ out+=delta; box.innerHTML=marked.parse(out); } }catch(_){} } }
+    if(!out) box.innerHTML=marked.parse('**Empty reply from backend.** Check the notebook logs; do not treat this as a model answer.');
+  }catch(err){ box.innerHTML=marked.parse('**Request failed:** '+String(err)); }
+  $('loading').style.display='none';
+};
+health();
+</script></body></html>
