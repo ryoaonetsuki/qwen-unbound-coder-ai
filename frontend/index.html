@@ -30,11 +30,27 @@ label{font-size:13px;color:#9aa7b4}a{color:#60a5fa}footer{padding:16px;text-alig
 <p id="loading">⏳ Generating…</p>
 <form id="form"><textarea id="input" placeholder="e.g. Write a Python function to merge two sorted lists, with tests"></textarea><button type="submit">Send</button></form>
 <div style="display:flex;gap:8px;margin-top:8px"><button class="secondary" id="reconnect" type="button">Reconnect / Health check</button><button class="secondary" id="clear" type="button">Clear chat</button></div>
-<details open><summary><b>Backend settings</b> — saved only in this browser (localStorage)</summary>
+<details open><summary><b>⚙️ Settings</b> — saved only in this browser (localStorage). Changing a setting here does not change the model file on the server; it only changes what this page asks for.</summary>
+<label>Hosting provider (preset — just a label for you, the real backend is the tunnel URL below)</label><select id="provider"><option value="kaggle-dual-t4">Kaggle — Dual T4 (recommended for exact Q4_K_M)</option><option value="colab-t4">Google Colab — Single T4 (partial offload)</option><option value="modal-l4">Modal — L4 24GB (credit-limited, future option)</option><option value="custom">Custom / other</option></select>
 <label>Gateway URL (from your notebook tunnel, e.g. https://…trycloudflare.com)</label><input id="base" placeholder="https://your-tunnel-url">
 <label>API key (only if you set QWEN_API_KEY in the notebook)</label><input id="key" type="password" placeholder="Optional">
+<label>Model file running on the server (must match what the notebook actually loaded)</label><select id="quant"><option value="Q4_K_M">Q4_K_M — 16.8 GB (exact requested model)</option><option value="IQ4_XS">IQ4_XS — 15.3 GB (still needs &gt;15 GB total, single T4 full offload fails)</option><option value="IQ2_M">IQ2_M — 10.6 GB (fits single T4, most degraded, refusal unmeasured)</option></select>
+<label>Context length (tokens — must be ≤ the server's -c value, default 8192)</label><select id="ctx"><option value="4096">4096</option><option value="8192" selected>8192</option><option value="16384">16384</option><option value="32768">32768</option></select>
+<label>Temperature</label><input id="temp" type="number" step="0.1" min="0" max="2" value="0.7">
+<label>Top-p</label><input id="topp" type="number" step="0.05" min="0" max="1" value="0.8">
 <label>Max tokens</label><input id="maxtok" type="number" value="1024">
+<label>System prompt</label><textarea id="sysprompt" style="width:100%;min-height:64px">You are Qwen Unbound Coder AI, a coding assistant. Answer with code first when asked for code.</textarea>
+<label><input id="direct" type="checkbox" style="width:auto"> Direct answer mode — ask for a short answer without long thinking</label>
+<div style="display:flex;gap:8px;margin-top:8px"><button class="secondary" id="saveSettings" type="button">Save settings</button><button class="secondary" id="resetSettings" type="button">Reset to defaults</button></div>
+<p id="saveNote" class="sub"></p>
 <p class="sub">Never paste a real password here. This key is only the gateway key you chose yourself.</p></details>
+<details><summary><b>📊 Quota planner (Kaggle-first plan)</b></summary>
+<p class="sub">Kaggle's commonly reported quota is ~30 GPU hours/week. That is ~4.3 hours/day on average — not 6–7. This planner just does the maths; it cannot create hours.</p>
+<label>Weekly GPU quota (hours)</label><input id="quotaWeek" type="number" value="30">
+<label>Already used this week (hours)</label><input id="quotaUsed" type="number" value="0">
+<label>Days left in this quota week</label><input id="quotaDays" type="number" value="7">
+<p id="quotaOut" class="sub"></p>
+<button class="secondary" id="calcQuota" type="button">Calculate</button></details>
 <details><summary><b>Restart / reconnect (Android)</b></summary>
 <ol><li>Open the Colab/Kaggle notebook from this repo on your phone.</li><li>Runtime → Run all. Wait for the tunnel URL and for <code>/health</code> to say <b>online</b>.</li><li>Paste that tunnel URL above, press Reconnect, then chat.</li><li>If the session expired, the model file must be re-downloaded unless the provider kept it (Colab local files do not survive a new runtime; Kaggle datasets/outputs may persist — see docs).</li></ol></details>
 <section><b>About</b><p>Model: JonathanColetti/Qwen3.8-27B-Uncensored-GGUF, Q4_K_M (16.8 GB), base Qwen/Qwen3.8-27B, Apache 2.0. Reduced-refusal is a property of those published weights, not a promise that every request is answered — the publisher measured 12/100 refusals vs 98/100 for the base on one harmful-prompt set.</p></section>
@@ -42,8 +58,14 @@ label{font-size:13px;color:#9aa7b4}a{color:#60a5fa}footer{padding:16px;text-alig
 <footer>Created by <b>Salman Biswas</b> (Ryo Aonetsuki) · <a href="https://github.com/ryoaonetsuki">GitHub</a> · <a href="https://t.me/ryoaonetsuki">Telegram</a> · <a href="https://t.me/aonetsukiarchive">Channel @aonetsukiarchive</a></footer>
 <script>
 const $=id=>document.getElementById(id);
-$('base').value=localStorage.getItem('qwen_base')||''; $('key').value=localStorage.getItem('qwen_key')||'';
-function save() { localStorage.setItem('qwen_base',$('base').value.trim()); localStorage.setItem('qwen_key',$('key').value.trim()); }
+const SETTING_IDS=['provider','base','key','quant','ctx','temp','topp','maxtok','sysprompt','quotaWeek','quotaUsed','quotaDays'];
+function loadSettings(){ SETTING_IDS.forEach(id=>{ const v=localStorage.getItem('qwen_'+id); if(v!==null && $(id)) $(id).value=v; }); const d=localStorage.getItem('qwen_direct'); if(d!==null) $('direct').checked=(d==='1'); }
+function save() { SETTING_IDS.forEach(id=>{ if($(id)) localStorage.setItem('qwen_'+id,$(id).value); }); localStorage.setItem('qwen_direct',$('direct').checked?'1':'0'); }
+loadSettings();
+$('saveSettings').onclick=()=>{ save(); $('saveNote').textContent='Saved in this browser.'; };
+$('resetSettings').onclick=()=>{ SETTING_IDS.forEach(id=>localStorage.removeItem('qwen_'+id)); localStorage.removeItem('qwen_direct'); location.reload(); };
+$('calcQuota').onclick=()=>{ const left=(parseFloat($('quotaWeek').value||0)-parseFloat($('quotaUsed').value||0)); const days=parseFloat($('quotaDays').value||7); $('quotaOut').textContent = left<0 ? 'Quota already exceeded this week.' : left.toFixed(1)+' hours left this week = '+(left/days).toFixed(1)+' hours/day for '+days+' days. For 6–7 h/day you would need '+(6*7)+'–'+(7*7)+' h/week, which is above Kaggle\'s ~30 h/week alone.'; save(); };
+$('calcQuota').onclick();
 async function health(){
   const base=$('base').value.trim(); if(!base){ $('status').textContent='No backend URL set'; $('status').className=''; return false; }
   save();
@@ -57,7 +79,8 @@ $('form').onsubmit=async e=>{ e.preventDefault(); const text=$('input').value.tr
   if(!(await health())){ addMsg('assistant','**Backend offline.** Start the notebook, wait for health = online, then try again. No reply was generated.'); return; }
   $('loading').style.display='block'; const box=addMsg('assistant',''); let out='';
   try{ const headers={'Content-Type':'application/json'}; const k=$('key').value.trim(); if(k) headers.Authorization='Bearer '+k;
-    const r=await fetch($('base').value.trim().replace(/\/$/,'')+'/v1/chat/completions',{method:'POST',headers,body:JSON.stringify({messages:[{role:'system',content:'You are Qwen Unbound Coder AI, a coding assistant. Answer with code first when asked for code.'},{role:'user',content:text}],temperature:0.7,top_p:0.8,max_tokens:parseInt($('maxtok').value||1024),stream:true})});
+    let sys=$('sysprompt').value.trim()||'You are Qwen Unbound Coder AI, a coding assistant.'; if($('direct').checked) sys+=' Give a direct, concise answer without long thinking.';
+    const r=await fetch($('base').value.trim().replace(/\/$/,'')+'/v1/chat/completions',{method:'POST',headers,body:JSON.stringify({messages:[{role:'system',content:sys},{role:'user',content:text}],temperature:parseFloat($('temp').value||0.7),top_p:parseFloat($('topp').value||0.8),max_tokens:parseInt($('maxtok').value||1024),stream:true})});
     if(!r.ok){ box.innerHTML=marked.parse('**Error '+r.status+':** '+(await r.text())); return; }
     const reader=r.body.getReader(), dec=new TextDecoder(); let buf='';
     while(true){ const {done,value}=await reader.read(); if(done) break; buf+=dec.decode(value,{stream:true}); const parts=buf.split('\n\n'); buf=parts.pop();
